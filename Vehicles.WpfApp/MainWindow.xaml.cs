@@ -121,6 +121,8 @@ public partial class MainWindow : Window
         {
             string message = _vehicleManager.MoveVehicle(vehicle, km);
 
+            DistanceTextBox.Clear();
+
             RefreshSelectedVehicle();
 
             MessageBox.Show(
@@ -157,6 +159,8 @@ public partial class MainWindow : Window
         {
             string message = driveable.Drive(km);
 
+            DistanceTextBox.Clear();
+
             RefreshSelectedVehicle();
 
             MessageBox.Show(
@@ -192,6 +196,8 @@ public partial class MainWindow : Window
         try
         {
             string message = swimmable.Swim(km);
+
+            DistanceTextBox.Clear();
 
             RefreshSelectedVehicle();
 
