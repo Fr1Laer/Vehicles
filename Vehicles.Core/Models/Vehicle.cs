@@ -63,14 +63,11 @@ public abstract class Vehicle : INotifyPropertyChanged
             
     }
 
-    // 
+    // Odometer-väärtuse automaatne uuendamine DataGridis
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    protected void OnPropertyChanged(
-        [CallerMemberName] string? propertyName = null)
+    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
-        PropertyChanged?.Invoke(
-            this,
-            new PropertyChangedEventArgs(propertyName));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
