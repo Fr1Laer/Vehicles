@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Globalization;
+using System.Security.AccessControl;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Vehicles.Core;
 using Vehicles.Core.Interfaces;
 using Vehicles.Core.Models;
@@ -12,6 +14,11 @@ namespace Vehicles.WpfApp;
 public partial class MainWindow : Window
 {
     private readonly VehicleManager _vehicleManager = new();
+
+    // new variables _selectedVehicle and _changingSelection
+    private Vehicle? _selectedVehicle;
+
+    private bool _changingSelection;
 
     public MainWindow()
     {
@@ -26,7 +33,11 @@ public partial class MainWindow : Window
 
         VehicleTypeComboBox.SelectedIndex = 0;
 
-        VehicleDataGrid.ItemsSource = _vehicleManager.Vehicles;
+        // CarGarageDataGrid and BoatGarageDataGrid
+
+        CarGarageDataGrid.ItemsSource = _vehicleManager.CarGarage.Vehicles;
+
+        BoatGarageDataGrid.ItemsSource = _vehicleManager.BoatGarage.Vehicles;
 
         UpdateButtons();
     }
@@ -91,8 +102,16 @@ public partial class MainWindow : Window
 
             VehicleTypeComboBox.SelectedIndex = 0;
 
-            VehicleDataGrid.SelectedItem = vehicle;
-            VehicleDataGrid.ScrollIntoView(vehicle);
+            SelectVehicle(vehicle);
+
+            if (vehicle is Boat)
+            {
+                BoatGarageDataGrid.ScrollIntoView(vehicle);
+            }
+            else
+            {
+                CarGarageDataGrid.ScrollIntoView(vehicle);
+            }    
 
             UpdateButtons();
         }
@@ -108,7 +127,7 @@ public partial class MainWindow : Window
 
     private void Move_Click(object sender, RoutedEventArgs e)
     {
-        if (VehicleDataGrid.SelectedItem is not Vehicle vehicle)
+        if (_selectedVehicle == null)
         {
             ShowVehicleRequired();
             return;
@@ -119,7 +138,7 @@ public partial class MainWindow : Window
 
         try
         {
-            string message = _vehicleManager.MoveVehicle(vehicle, km);
+            string message = _vehicleManager.MoveVehicle(_selectedVehicle, km);
 
             DistanceTextBox.Clear();
 
@@ -143,13 +162,13 @@ public partial class MainWindow : Window
 
     private void Drive_Click(object sender, RoutedEventArgs e)
     {
-        if (VehicleDataGrid.SelectedItem is not Vehicle vehicle)
+        if (_selectedVehicle == null)
         {
             ShowVehicleRequired();
             return;
         }
 
-        if (vehicle is not IDriveable driveable)
+        if (_selectedVehicle is not IDriveable driveable)
             return;
 
         if (!TryGetDistance(out double km))
@@ -181,13 +200,13 @@ public partial class MainWindow : Window
 
     private void Swim_Click(object sender, RoutedEventArgs e)
     {
-        if (VehicleDataGrid.SelectedItem is not Vehicle vehicle)
+        if (_selectedVehicle == null)
         {
             ShowVehicleRequired();
             return;
         }
 
-        if (vehicle is not ISwimmable swimmable)
+        if (_selectedVehicle is not ISwimmable swimmable)
             return;
 
         if (!TryGetDistance(out double km))
@@ -219,16 +238,13 @@ public partial class MainWindow : Window
 
     private void DeleteVehicle_Click(object sender, RoutedEventArgs e)
     {
-        if (VehicleDataGrid.SelectedItem is not Vehicle vehicle)
+        if (_selectedVehicle == null)
         {
-            MessageBox.Show(
-                "Vali tabelist sõiduk, mida kustutada!",
-                "Teavitus",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-
+            ShowVehicleRequired();
             return;
         }
+
+        Vehicle vehicle = _selectedVehicle;
 
         MessageBoxResult result = MessageBox.Show(
             $"Kas soovid sõiduki {vehicle.Make} {vehicle.Model} kustutada?",
@@ -241,16 +257,7 @@ public partial class MainWindow : Window
 
         _vehicleManager.RemoveVehicle(vehicle);
 
-        VehicleDataGrid.SelectedItem = null;
-
-        RefreshSelectedVehicle();
-        UpdateButtons();
-    }
-
-    private void VehicleDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        RefreshSelectedVehicle();
-        UpdateButtons();
+        ClearSelection();
     }
 
     private bool TryGetDistance(out double km)
@@ -306,7 +313,7 @@ public partial class MainWindow : Window
 
     private void RefreshSelectedVehicle()
     {
-        if (VehicleDataGrid.SelectedItem is not Vehicle vehicle)
+        if (_selectedVehicle == null)
         {
             SelectedVehicleTextBlock.Text = "Sõidukit ei ole valitud.";
 
@@ -316,17 +323,17 @@ public partial class MainWindow : Window
         }
 
         SelectedVehicleTextBlock.Text =
-            $"Automark: {vehicle.Make}\n" +
-            $"Mudel: {vehicle.Model}\n" +
-            $"Transpordiliik: {vehicle.VehicleType}\n" +
-            $"Läbitud: {vehicle.Odometer:F1} km";
+            $"Automark: {_selectedVehicle.Make}\n" +
+            $"Mudel: {_selectedVehicle.Model}\n" +
+            $"Transpordiliik: {_selectedVehicle.VehicleType}\n" +
+            $"Läbitud: {_selectedVehicle.Odometer:F1} km";
 
-        VehicleLogListBox.ItemsSource = vehicle.Log;
+        VehicleLogListBox.ItemsSource = _selectedVehicle.Log;
     }
 
     private void UpdateButtons()
     {
-        if (VehicleDataGrid.SelectedItem is not Vehicle vehicle)
+        if (_selectedVehicle == null)
         {
             MoveButton.IsEnabled = false;
             DriveButton.IsEnabled = false;
@@ -336,8 +343,8 @@ public partial class MainWindow : Window
         }
 
         MoveButton.IsEnabled = true;
-        DriveButton.IsEnabled = vehicle is IDriveable;
-        SwimButton.IsEnabled = vehicle is ISwimmable;
+        DriveButton.IsEnabled = _selectedVehicle is IDriveable;
+        SwimButton.IsEnabled = _selectedVehicle is ISwimmable;
     }
 
     private void ShowVehicleRequired()
@@ -363,4 +370,84 @@ public partial class MainWindow : Window
             }
         }
     }
+
+    private void CarGarageDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_changingSelection)
+            return;
+
+        Vehicle? vehicle = CarGarageDataGrid.SelectedItem as Vehicle;
+
+        SelectVehicleFromGrid(vehicle, CarGarageDataGrid);
+    }
+
+    private void BoatGarageDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_changingSelection)
+            return;
+
+        Vehicle? vehicle = BoatGarageDataGrid.SelectedItem as Vehicle;
+
+        SelectVehicleFromGrid(vehicle, BoatGarageDataGrid);
+    }
+
+    private void SelectVehicleFromGrid(Vehicle? vehicle, DataGrid sourceGrid)
+    {
+        _changingSelection = true;
+
+        if (sourceGrid == CarGarageDataGrid)
+        {
+            BoatGarageDataGrid.SelectedItem = null; 
+        }
+        else
+        {
+            CarGarageDataGrid.SelectedItem = null;
+        }
+
+        _changingSelection = false;
+
+        _selectedVehicle = vehicle;
+
+        RefreshSelectedVehicle();
+        UpdateButtons();    
+    }
+
+    private void SelectVehicle(Vehicle vehicle)
+    {
+        _changingSelection = true;
+
+        if (vehicle is Boat)
+        {
+            CarGarageDataGrid.SelectedItem = null;
+            BoatGarageDataGrid.SelectedItem = vehicle;
+        }
+        else
+        {
+            CarGarageDataGrid.SelectedItem = vehicle;
+            BoatGarageDataGrid.SelectedItem = null;
+        }
+
+        _changingSelection = false;
+
+        _selectedVehicle = vehicle;
+
+        RefreshSelectedVehicle();
+        UpdateButtons();
+    }
+
+    private void ClearSelection()
+    {
+        _changingSelection = true;
+
+        CarGarageDataGrid.SelectedItem = null;
+        BoatGarageDataGrid.SelectedItem = null;
+
+        _changingSelection = false;
+
+        _selectedVehicle = null;
+
+        RefreshSelectedVehicle();
+        UpdateButtons();
+    }
+
 }
