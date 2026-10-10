@@ -31,6 +31,22 @@ public abstract class Vehicle : INotifyPropertyChanged
 
     public ObservableCollection<string> Log { get; } = new();
 
+    // new _lightsOn and LightsOn variables
+    private bool _lightsOn;
+
+    public bool LightsOn
+    {
+        get => _lightsOn;
+        private set
+        {
+            if (_lightsOn == value) 
+                return;
+
+            _lightsOn = value;
+            OnPropertyChanged();
+        }
+    }
+
     protected Vehicle(string make, string model)
     {
         if (string.IsNullOrWhiteSpace(make))
@@ -52,6 +68,25 @@ public abstract class Vehicle : INotifyPropertyChanged
     protected void AddLog(string message)
     {
         Log.Add($"{DateTime.Now:HH:mm:ss} - {message}");
+    }
+
+    // new AddLogEntry function
+    public void AddLogEntry(string message)
+    {
+        AddLog(message);
+    }
+
+    // new Task FlashLightsAsync function
+    public async Task FlashLightsAsync()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            LightsOn = true;
+            await Task.Delay(200);
+
+            LightsOn = false;
+            await Task.Delay(200);
+        }
     }
 
     protected static void ValidateDistance(double km)
